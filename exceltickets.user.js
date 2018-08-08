@@ -117,7 +117,7 @@ function createModal(){
     span.setAttribute("aria-hidden", true);
     span.innerHTML = "&times;";
     hbutton.appendChild(span);
-    modalHeader.appendChild(hbutton);
+    header.appendChild(hbutton);
 
     // create form in modal body
     var modalBody = document.createElement("form");
