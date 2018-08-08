@@ -302,6 +302,7 @@ function createTickets(tickets, customer, product){
     console.log("create tickets");
     // loop through the tickets array and update their versions
     var len = tickets.length;
+    var putURL = url + "tickets";
     for(var c=0; c<len; ++c){
         var title = tickets[c].ticket;
         var est = tickets[c].estimatedDays;
@@ -334,13 +335,16 @@ function createTickets(tickets, customer, product){
             '<Severity>' + priority + '</Severity>'+
           '</Ticket>';
 
-        var xmlData = parser.parseFromString(data,"text/xml");
-        console.log(xmlData);
-        var putURL = url + "tickets";
-        xhr.open("POST", putURL, false, orgID, token);
-        xhr.send(xmlData);
+        sendData(data, putURL);
     }
 
     //force reload so website reflects resolved version change
     location.reload();
+}
+
+async function sendData(data, putURL){
+  var xmlData = parser.parseFromString(data,"text/xml");
+  xhr.open("POST", putURL, false, orgID, token);
+  xhr.send(xmlData);
+  console.log("DATA SENT");
 }
