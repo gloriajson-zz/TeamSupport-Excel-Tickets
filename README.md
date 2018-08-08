@@ -10,3 +10,6 @@ Excel spreadsheets should be formatted so that the following columns exist: titl
 
 
 Tickets will automatically be created as New Feature tickets.
+
+
+Input your Organization ID and API Token in lines 38 and 39 of the userscript respectively. These can be found in the Admin account on TeamSupport.
