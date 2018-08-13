@@ -13,10 +13,11 @@
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/Search*
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/WaterCooler*
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/Calendar*
-// @exclude      https://app.teamsupport.com/vcr/*/Pages/Users*
+// @exclude      https://app.teamsupport.com/vcr/*/Pages/User*
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/Groups*
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/Customer*
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/Product*
+// @exclude      https://app.teamsupport.com/vcr/*/Pages/Inventory*
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/Asset*
 // @exclude      https://app.teamsupport.com/vcr/*/Pages/Report*
 // @exclude      https://app.teamsupport.com/vcr/*/TicketPreview*
@@ -53,29 +54,21 @@ function main(){
     button.setAttribute("type", "button");
     button.setAttribute("data-toggle", "modal");
     button.setAttribute("data-target", "#excelTickets");
-    //button.setAttribute("data-backdrop", "static");
     toolbar.appendChild(button);
   }
 
-  var cellData = createModal();
-
   button.addEventListener('click', function(e){
-    console.log("trying to clear text");
-    e.preventDefault();
-    var clear = document.getElementById('file-text').value;
-    console.log(clear);
-    if(clear){
-        console.log("resetting text box value");
-        document.getElementById('file-text').setAttribute("value", "");
-        console.log(document.getElementById('file-text').value);
+    console.log("trying to clear modal...");
+    if(document.getElementById("excelTickets") != null){
+      var element = document.getElementById("excelTickets");
+      element.parentNode.removeChild(element);
     }
+    createModal();
   });
-
-
 }
 
 function createModal(){
-    console.log("createModal");
+    console.log("creating modal...");
     // create Resolved Versions modal pop up
     var modal = document.createElement("div");
     modal.className = "modal fade";
@@ -152,7 +145,7 @@ function createModal(){
 
 function populateForm(){
 //create select dropdowns and file chooser UI components
-  console.log("populate form");
+  console.log("populating form with UI components...");
   //create customer dropdown with options from API
   var modalBody = document.getElementById("create-body");
   var cdropdown = document.createElement("div");
@@ -194,6 +187,28 @@ function populateForm(){
     //add listener to select customer drop down and change products accordingly
     var customerID = document.getElementById('form-select-customer').value;
     changeProduct(customerID);
+  }
+
+  //create ticket type dropdown with options from API
+  var tdropdown = document.createElement("div");
+  tdropdown.className = "form-group";
+  var tlabel = document.createElement("label");
+  tlabel.setAttribute("for","form-select-type");
+  tlabel.innerHTML = "Select a Ticket Type";
+  var tselect = document.createElement("select");
+  tselect.className = "form-control";
+  tselect.setAttribute("id", "form-select-type");
+
+  tdropdown.appendChild(tlabel);
+  tdropdown.appendChild(tselect);
+  modalBody.appendChild(tdropdown);
+
+  var types = getTicketTypes();
+  for(var t=0; t<types.name.length; ++t){
+    option = document.createElement("option");
+    option.setAttribute("value", types.id[t].innerHTML);
+    option.innerHTML = types.name[t].innerHTML;
+    tselect.appendChild(option);
   }
 
   // create file upload button and file text bar
@@ -251,13 +266,15 @@ function handleFile(){
     document.getElementById('create-btn').onclick = function create() {
       var customer = document.getElementById('form-select-customer').value;
       var product = document.getElementById('form-select-product').value;
-      createTickets(rowObject, customer, product);
+      var type = document.getElementById('form-select-type').value;
+      createTickets(rowObject, customer, product, type);
     }
   };
   if(rABS) reader.readAsBinaryString(f); else reader.readAsArrayBuffer(f);
 }
 
 function changeProduct(customerID){
+  console.log("changing product based on customer...");
 //change product according to the chosen customer
   document.getElementById("form-select-product").innerHTML = "";
   if(customerID.length == 0) document.getElementById("form-select-product").innerHTML = "<option></option>";
@@ -284,7 +301,7 @@ function changeProduct(customerID){
 
 function getCustomers(){
   //get all the customers through the API
-  console.log("get customers");
+  console.log("get customers from api...");
   var queryURL = url + "Customers";
   xhr.open("GET", queryURL, false, orgID, token);
   xhr.send();
@@ -298,8 +315,22 @@ function getCustomers(){
   };
 }
 
-function createTickets(tickets, customer, product){
-    console.log("create tickets");
+function getTicketTypes(){
+  // getting ticket types from api
+  var queryURL = url + "Properties/TicketTypes";
+  xhr.open("GET", queryURL, false, orgID, token);
+  xhr.send();
+  var xmlDoc = parser.parseFromString(xhr.responseText,"text/xml");
+  var ticketTypeID = xmlDoc.getElementsByTagName("TicketTypeID");
+  var ticketTypeName = xmlDoc.getElementsByTagName("Name");
+  return {
+    id: ticketTypeID,
+    name: ticketTypeName
+  }
+}
+
+function createTickets(tickets, customer, product, type){
+    console.log("create tickets...");
     // loop through the tickets array and update their versions
     var len = tickets.length;
     var putURL = url + "tickets";
@@ -307,7 +338,8 @@ function createTickets(tickets, customer, product){
         var title = tickets[c].ticket;
         var est = tickets[c].estimatedDays;
         var priority = tickets[c].priority;
-        var id = tickets[c].id;
+        var description = tickets[c].description;
+        var statusid;
 
         var s = "0" + est;
         est = s.substr(s.length-5);
@@ -324,6 +356,23 @@ function createTickets(tickets, customer, product){
           priority = "Low";
         }
 
+        //change ticket status id based on ticket type (all new ids are different)
+        if(type == "10328"){
+            statusid = "55075";
+        }else if(type == "10329"){
+            statusid = "55085";
+        }else if(type == "10330"){
+            statusid = "55097";
+        }else if(type == "15440"){
+            statusid = "93204";
+        }else if(type == "16621"){
+            statusid = "100464";
+        }else if(type == "53129"){
+            statusid = "302815";
+        }else{
+            statusid = "55067";
+    }
+
         var data =
           '<Ticket>' +
             '<TicketStatusID>55085</TicketStatusID>' +
@@ -336,6 +385,11 @@ function createTickets(tickets, customer, product){
           '</Ticket>';
 
         sendData(data, putURL);
+
+        //add description to new tickets (are considered actions)
+        var actionURL = url + "Tickets/"+title+"/Actions/54540250"
+        var actionData = '<Action><Description>' + description + '</Description></Action>';
+        sendData(actionData, actionURL);
     }
 
     //force reload so website reflects resolved version change
