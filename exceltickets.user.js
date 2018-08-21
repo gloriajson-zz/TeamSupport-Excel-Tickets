@@ -169,7 +169,20 @@ function populateForm(){
     cselect.appendChild(option);
   }
 
-  //create product dropdown with options from API
+  //create contact dropdown with options from API
+  var condropdown = document.createElement("div");
+  condropdown.className = "form-group";
+  var conlabel = document.createElement("label");
+  conlabel.setAttribute("for","etform-select-contact");
+  conlabel.innerHTML = "Select a Contact";
+  var conselect = document.createElement("select");
+  conselect.className = "form-control";
+  conselect.setAttribute("id", "etform-select-contact");
+
+  condropdown.appendChild(conlabel);
+  condropdown.appendChild(conselect);
+  modalBody.appendChild(condropdown);
+
   var pdropdown = document.createElement("div");
   pdropdown.className = "form-group";
   var plabel = document.createElement("label");
@@ -187,6 +200,7 @@ function populateForm(){
     //add listener to select customer drop down and change products accordingly
     var customerID = document.getElementById('form-select-customer').value;
     changeProduct(customerID);
+    changeContacts(customerID);
   }
 
   //create ticket type dropdown with options from API
@@ -329,24 +343,64 @@ function getTicketTypes(){
   }
 }
 
+function changeContacts(customerID){
+  document.getElementById("etform-select-contact").innerHTML = "";
+  if(customerID.length == 0) document.getElementById("acform-select-contact").innerHTML = "<option></option>";
+  else {
+    //get customer specific products from API
+    var queryURL = url + "Customers/" + customerID + "/Contacts";
+    xhr.open("GET", queryURL, false, orgID, token);
+    xhr.send();
+    var xmlDoc = parser.parseFromString(xhr.responseText,"text/xml");
+    var id = xmlDoc.getElementsByTagName("ContactID");
+    var firstName = xmlDoc.getElementsByTagName("FirstName");
+    var lastName = xmlDoc.getElementsByTagName("LastName");
+
+    //populate product dropdown
+    var conDropDown = document.getElementById("etform-select-contact");
+     for(var i=0; i<id.length; ++i){
+       var c = document.createElement("option");
+       c.value = id[i].innerHTML;
+       c.text = firstName[i].innerHTML + " " + lastName[i].innerHTML;
+       conDropDown.options.add(c);
+    }
+  }
+}
+
 function createTickets(tickets, customer, product, type){
     console.log("create tickets...");
     // loop through the tickets array and update their versions
     var len = tickets.length;
     var putURL = url + "tickets";
+    var contact = document.getElementById("etform-select-contact").value;
+    var statusid;
+
+    //change ticket status id based on ticket type (required since all new ids are different)
+    if(type == "10328"){
+        statusid = "55075"; //Defect
+    }else if(type == "10329"){
+        statusid = "55085"; //Feature
+    }else if(type == "10330"){
+        statusid = "55097"; //Tasks
+    }else if(type == "15440"){
+        statusid = "93204"; //Download
+    }else if(type == "16621"){
+        statusid = "100464"; //WO/Customization
+    }else if(type == "53129"){
+        statusid = "302815"; //Source Documentation
+    }else{
+        statusid = "55067"; //Support
+    }
+
     for(var c=0; c<len; ++c){
+        console.log(tickets[c]);
         var title = tickets[c].ticket;
-        var est = tickets[c].estimatedDays;
+        var est = tickets[c].devdays;
         var priority = tickets[c].priority;
         var description = tickets[c].description;
-        var statusid;
 
         var s = "0" + est;
         est = s.substr(s.length-5);
-
-        if(id != null || id != undefined){
-          title += (" ("+ id + ")");
-        }
 
         if(priority == '0' || priority == '1'){
           priority = "High";
@@ -356,49 +410,42 @@ function createTickets(tickets, customer, product, type){
           priority = "Low";
         }
 
-        //change ticket status id based on ticket type (all new ids are different)
-        if(type == "10328"){
-            statusid = "55075";
-        }else if(type == "10329"){
-            statusid = "55085";
-        }else if(type == "10330"){
-            statusid = "55097";
-        }else if(type == "15440"){
-            statusid = "93204";
-        }else if(type == "16621"){
-            statusid = "100464";
-        }else if(type == "53129"){
-            statusid = "302815";
-        }else{
-            statusid = "55067";
-    }
-
         var data =
           '<Ticket>' +
-            '<TicketStatusID>55085</TicketStatusID>' +
-            '<TicketTypeID>10329</TicketTypeID>' +
+            '<TicketStatusID>'+ statusid +'</TicketStatusID>' +
+            '<TicketTypeID>'+ type +'</TicketTypeID>' +
             '<CustomerID>' + customer + '</CustomerID>'+
             '<ProductID>' + product + '</ProductID>'+
             '<Name>' + title + '</Name>'+
             '<Estimatedevdays>' + est + '</Estimatedevdays>'+
             '<Severity>' + priority + '</Severity>'+
+            '<Contact><ContactID>' + contact + '</ContactID></Contact>' +
           '</Ticket>';
 
-        sendData(data, putURL);
+        console.log(data);
+        var xmlData = parser.parseFromString(data,"text/xml");
+        xhr.open("POST", putURL, false, orgID, token);
+        xhr.send(xmlData);
+        console.log("DATA SENT");
+        var responseDoc = parser.parseFromString(xhr.responseText,"text/xml");
+        var ticketid = responseDoc.getElementsByTagName("TicketID")[0].innerHTML;
+
+        var actionURL = url +'Tickets/'+ticketid+'/Actions';
+        xhr.open("GET", actionURL, false, orgID, token);
+        xhr.send();
+        var acxmlDoc = parser.parseFromString(xhr.responseText,"text/xml");
+        var actionid = acxmlDoc.getElementsByTagName("ActionID")[0].innerHTML;
 
         //add description to new tickets (are considered actions)
-        var actionURL = url + "Tickets/"+title+"/Actions/54540250"
-        var actionData = '<Action><Description>' + description + '</Description></Action>';
-        sendData(actionData, actionURL);
+        var addactionURL = url + "Tickets/"+ticketid+"/Actions/"+actionid;
+        var actionData = '<Action><SystemActionTypeID>1</SystemActionTypeID><ActionType>Description</ActionType><Name>Description</Name>'+
+            '<Description>&lt;p&gt;' + description + '&lt;p&gt;</Description></Action>'//<CreatorID>'+id+'</CreatorID><ModifierID>'+id+'</ModifierID><UserID>'+id+'</UserID></Action>';
+        console.log(actionData);
+        var axmlData = parser.parseFromString(actionData,"text/xml");
+        xhr.open("PUT", addactionURL, false, orgID, token);
+        xhr.send(axmlData);
     }
 
     //force reload so website reflects resolved version change
     location.reload();
-}
-
-async function sendData(data, putURL){
-  var xmlData = parser.parseFromString(data,"text/xml");
-  xhr.open("POST", putURL, false, orgID, token);
-  xhr.send(xmlData);
-  console.log("DATA SENT");
 }
